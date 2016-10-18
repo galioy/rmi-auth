@@ -1,0 +1,6 @@
+#!/bin/bash
+cd ..
+javac -d classes/ *.java
+sleep 2
+cd classes/
+rmiregistry
