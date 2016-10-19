@@ -2,6 +2,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.rmi.Remote;
 import java.rmi.RemoteException;
+import java.sql.SQLException;
 
 public interface RemoteInterface extends Remote{
 
@@ -41,14 +42,14 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String stop() throws RemoteException;
+    String stop() throws RemoteException, SQLException;
 
     /**
      * Restarts the print server, clears the print queue and starts the print server again
      * @return String
      * @throws RemoteException
      */
-    String restart() throws IOException;
+    String restart() throws IOException, SQLException;
 
     /**
      * Prints status of the printer on the user's display

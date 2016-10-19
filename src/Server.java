@@ -4,6 +4,7 @@ import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
+import java.sql.*;
 import java.util.ArrayList;
 import java.util.HashMap;
 
@@ -12,8 +13,18 @@ public class Server implements RemoteInterface {
     private String printerStatus = "OFF";
     private HashMap<String, String> config;
 
+    private Connection connection;
+    String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
 
-    public Server() {}
+    public Server() {
+        try {
+            Class.forName("org.postgresql.Driver");
+            connection = DriverManager.getConnection(url);
+        } catch (Exception e){
+            System.out.println("Connection to the DB could not be established...");
+            e.printStackTrace();
+        }
+    }
 
     /**
      * Prints file "filename" on the specified "printer"
@@ -86,10 +97,16 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String stop() throws RemoteException {
+    public String stop() throws RemoteException, SQLException {
         printQueue = null;
         config = null;
         printerStatus = "OFF";
+        try {
+            connection.close();
+        } catch (SQLException e){
+            e.printStackTrace();
+            return "An error occurred while stopping the server...";
+        }
         return "The print server has been stopped.";
     }
 
@@ -100,10 +117,15 @@ public class Server implements RemoteInterface {
      * @throws IOException
      */
     @Override
-    public String restart() throws IOException {
-        String output = stop() + "\n";
-        output += start();
-        return output;
+    public String restart() throws IOException, SQLException {
+        try {
+            String output = stop() + "\n";
+            output += start();
+            return output;
+        } catch (SQLException e){
+            e.printStackTrace();
+            return "An error occurred while stopping the server...";
+        }
     }
 
     /**
@@ -170,6 +192,16 @@ public class Server implements RemoteInterface {
             // Bind the remote object's stub in the registry
             Registry registry = LocateRegistry.getRegistry();
             registry.bind("RemoteInterface", stub);
+
+            Statement stmt = obj.connection.createStatement();
+            ResultSet rs = stmt.executeQuery("SELECT * FROM users");
+            while (rs.next()){
+                String username = rs.getString("username");
+                String pswd = rs.getString("password");
+                System.out.println(username + ": " + pswd);
+            }
+            rs.close();
+            stmt.close();
 
             System.err.println("Server ready");
         } catch (Exception e) {

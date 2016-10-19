@@ -1,6 +1,7 @@
 import java.io.IOException;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.registry.Registry;
+import java.sql.SQLException;
 import java.util.Scanner;
 
 public class Client {
@@ -39,9 +40,17 @@ public class Client {
                 case "start":
                     return "Printer server is already ON...";
                 case "stop":
-                    return stub.stop();
+                    try {
+                        return stub.stop();
+                    } catch (SQLException e){
+                        e.printStackTrace();
+                    }
                 case "restart":
-                    return stub.restart();
+                    try{
+                        return stub.restart();
+                    } catch (SQLException e){
+                        e.printStackTrace();
+                    }
                 case "status":
                     return stub.status();
                 case "readConfig":
