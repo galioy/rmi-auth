@@ -56,7 +56,7 @@ public class Client {
                     System.out.println("> Please provide value for the parameter:");
                     String paramValue = scanner.nextLine();
 
-                    return stub.print(param, paramValue);
+                    return stub.setConfig(param, paramValue);
                 default:
                     System.out.println("Command not recognized. Available commands are: \n" +
                             "print, queue, topQueue, start, stop, restart, status, readConfig, setConfig.\n" +

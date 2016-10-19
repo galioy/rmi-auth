@@ -5,10 +5,12 @@ import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
 import java.util.ArrayList;
+import java.util.HashMap;
 
 public class Server implements RemoteInterface {
     private ArrayList<String> printQueue;
     private String printerStatus = "OFF";
+    private HashMap<String, String> config;
 
 
     public Server() {}
@@ -72,6 +74,7 @@ public class Server implements RemoteInterface {
     public String start() throws IOException {
         new FileOutputStream("log.txt", false).close();
         printQueue = new ArrayList<>();
+        config = new HashMap<>();
         printerStatus = "ON";
         return "The print server has been started.";
     }
@@ -85,6 +88,7 @@ public class Server implements RemoteInterface {
     @Override
     public String stop() throws RemoteException {
         printQueue = null;
+        config = null;
         printerStatus = "OFF";
         return "The print server has been stopped.";
     }
@@ -122,7 +126,10 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String readConfig(String parameter) throws RemoteException {
-        return null;
+        if(config.get(parameter) == null){
+            return "No configuration with key \"" + parameter + "\"";
+        }
+        return parameter + ": " + config.get(parameter);
     }
 
     /**
@@ -135,13 +142,20 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String setConfig(String parameter, String value) throws RemoteException {
-        return null;
+        config.put(parameter, value);
+        return "Done! :)";
     }
 
+    /**
+     * Iterates through the printer queue and constructs a user-friendly list of files on the queue, ordered from top
+     * to bottom of the queue.
+     * @param topLine String The text to be printed before the list of files.
+     * @return String
+     */
     private String constructListOfFiles(String topLine){
         String listOfFiles = topLine + "\n";
-        for (String fileName: printQueue) {
-            listOfFiles += "* " + fileName + "\n";
+        for (int i=1; i<=printQueue.size(); i++) {
+            listOfFiles += i + ". " + printQueue.get(i-1) + "\n";
         }
 
         return listOfFiles;
