@@ -1,13 +1,15 @@
-import java.io.File;
-import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.rmi.RemoteException;
 import java.rmi.registry.Registry;
 import java.rmi.registry.LocateRegistry;
 import java.rmi.server.UnicastRemoteObject;
+import java.util.ArrayList;
 
 public class Server implements RemoteInterface {
+    private ArrayList<String> printQueue;
+    private String printerStatus = "OFF";
+
 
     public Server() {}
 
@@ -21,30 +23,43 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String print(String filename, String printer) throws RemoteException {
-        return null;
+        printQueue.add(filename);
+        return "\"" + filename + "\" was added to the print queue.";
     }
 
     /**
-     * Lists the print queue on the user's display, in lines of the form <job number> <file name>
+     * Lists the print printQueue on the user's display, in lines of the form <job number> <file name>
      *
      * @return String
      * @throws RemoteException
      */
     @Override
     public String queue() throws RemoteException {
-        return null;
+        String topLine = "List of files on the queue:";
+        if(printQueue.size() == 0){
+            return topLine + "\n -- empty --";
+        }
+        return constructListOfFiles(topLine);
     }
 
     /**
-     * Moves "job" to the top of the queue
+     * Moves "job" to the top of the printQueue
      *
-     * @param job int
+     * @param jobID int
      * @return String
      * @throws RemoteException
      */
     @Override
-    public String topQueue(int job) throws RemoteException {
-        return null;
+    public String topQueue(int jobID) throws RemoteException {
+        if (jobID >= printQueue.size()){
+            return "Print job with ID " + jobID + " does not exist.";
+        }
+
+        String fileToMove = printQueue.get(jobID);
+        printQueue.remove(jobID);
+        printQueue.add(0, fileToMove);
+
+        return constructListOfFiles("The file \""+fileToMove+"\" has been moved to top of the queue. Now the queue is:");
     }
 
     /**
@@ -56,6 +71,8 @@ public class Server implements RemoteInterface {
     @Override
     public String start() throws IOException {
         new FileOutputStream("log.txt", false).close();
+        printQueue = new ArrayList<>();
+        printerStatus = "ON";
         return "The print server has been started.";
     }
 
@@ -67,29 +84,33 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String stop() throws RemoteException {
-        return null;
+        printQueue = null;
+        printerStatus = "OFF";
+        return "The print server has been stopped.";
     }
 
     /**
-     * Restarts the print server, clears the print queue and starts the print server again
+     * Restarts the print server, clears the print printQueue and starts the print server again
      *
      * @return String
-     * @throws RemoteException
+     * @throws IOException
      */
     @Override
-    public String restart() throws RemoteException {
-        return null;
+    public String restart() throws IOException {
+        String output = stop() + "\n";
+        output += start();
+        return output;
     }
 
     /**
-     * Prints status of the printer on the user's display
+     * Prints printerStatus of the printer on the user's display
      *
      * @return String
      * @throws RemoteException
      */
     @Override
     public String status() throws RemoteException {
-        return "Yeah boi!";
+        return printerStatus;
     }
 
     /**
@@ -115,6 +136,15 @@ public class Server implements RemoteInterface {
     @Override
     public String setConfig(String parameter, String value) throws RemoteException {
         return null;
+    }
+
+    private String constructListOfFiles(String topLine){
+        String listOfFiles = topLine + "\n";
+        for (String fileName: printQueue) {
+            listOfFiles += "* " + fileName + "\n";
+        }
+
+        return listOfFiles;
     }
 
     public static void main(String args[]) {

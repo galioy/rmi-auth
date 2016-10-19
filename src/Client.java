@@ -8,49 +8,62 @@ public class Client {
     private Client() {}
 
     private static String callServer(String command, RemoteInterface stub, Scanner scanner) throws IOException{
-        switch (command){
-            case "print":
-                System.out.println("-> Please provide filename to be printed:");
-                String filename = scanner.nextLine();
+        if(stub.status().equals("OFF")){
+            switch (command){
+                case "status":
+                    return stub.status();
+                case "start":
+                    return stub.start();
+                default:
+                    System.out.println("> The printer server is OFF. Please enter \"start\" to start it...");
+                    command = scanner.nextLine();
+                    return callServer(command, stub, scanner);
+            }
+        } else {
+            switch (command){
+                case "print":
+                    System.out.println("> Please provide filename to be printed:");
+                    String filename = scanner.nextLine();
 
-                System.out.println("-> Please provide printer name:");
-                String printer = scanner.nextLine();
+                    System.out.println("> Please provide printer number:");
+                    String printer = scanner.nextLine();
 
-                return stub.print(filename, printer);
-            case "queue":
-                return stub.queue();
-            case "topQueue":
-                System.out.println("-> Please provide job ID:");
-                int jobID = scanner.nextInt();
+                    return stub.print(filename, printer);
+                case "queue":
+                    return stub.queue();
+                case "topQueue":
+                    System.out.println("> Please provide job ID:");
+                    int jobID = scanner.nextInt();
 
-                return stub.topQueue(jobID);
-            case "start":
-                return stub.start();
-            case "stop":
-                return stub.stop();
-            case "restart":
-                return stub.restart();
-            case "status":
-                return stub.status();
-            case "readConfig":
-                System.out.println("-> Please provide config parameter:");
-                String param = scanner.nextLine();
+                    return stub.topQueue(jobID);
+                case "start":
+                    return "Printer server is already ON...";
+                case "stop":
+                    return stub.stop();
+                case "restart":
+                    return stub.restart();
+                case "status":
+                    return stub.status();
+                case "readConfig":
+                    System.out.println("> Please provide config parameter:");
+                    String param = scanner.nextLine();
 
-                return stub.readConfig(param);
-            case "setConfig":
-                System.out.println("-> Please provide parameter to be set:");
-                param = scanner.nextLine();
+                    return stub.readConfig(param);
+                case "setConfig":
+                    System.out.println("> Please provide parameter to be set:");
+                    param = scanner.nextLine();
 
-                System.out.println("-> Please provide value for the parameter:");
-                String paramValue = scanner.nextLine();
+                    System.out.println("> Please provide value for the parameter:");
+                    String paramValue = scanner.nextLine();
 
-                return stub.print(param, paramValue);
-            default:
-                System.out.println("Command not recognized. Available commands are: \n" +
-                        "print, queue, topQueue, start, stop, restart, status, readConfig, setConfig.\n" +
-                        "-> Please type in a command again:");
-                command = scanner.nextLine();
-                return callServer(command, stub, scanner);
+                    return stub.print(param, paramValue);
+                default:
+                    System.out.println("Command not recognized. Available commands are: \n" +
+                            "print, queue, topQueue, start, stop, restart, status, readConfig, setConfig.\n" +
+                            "> Please type in a command again:");
+                    command = scanner.nextLine();
+                    return callServer(command, stub, scanner);
+            }
         }
     }
 

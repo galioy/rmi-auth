@@ -48,7 +48,7 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String restart() throws RemoteException;
+    String restart() throws IOException;
 
     /**
      * Prints status of the printer on the user's display
