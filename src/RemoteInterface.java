@@ -6,6 +6,10 @@ import java.sql.SQLException;
 
 public interface RemoteInterface extends Remote{
 
+    String register(String username, String pswd) throws RemoteException;
+
+    String authenticate(String username, String pswd) throws RemoteException;
+
     /**
      * Prints file "filename" on the specified "printer"
      * @param filename String
