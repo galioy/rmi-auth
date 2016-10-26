@@ -1,6 +1,5 @@
 import javax.crypto.SecretKeyFactory;
 import javax.crypto.spec.PBEKeySpec;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.math.BigInteger;
 import java.rmi.RemoteException;
@@ -20,7 +19,7 @@ public class Server implements RemoteInterface {
     private ArrayList<String> printQueue;
     private String printerStatus = "OFF";
     private HashMap<String, String> config;
-    private HashMap<String, String> session;
+    private HashMap<String, String> sessions;
 
     private Connection connection;
     String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
@@ -35,6 +34,13 @@ public class Server implements RemoteInterface {
         }
     }
 
+    /**
+     * Stores a new user with password and salt in the DB
+     * @param username String
+     * @param pswd String
+     * @return String
+     * @throws RemoteException
+     */
     @Override
     public String register(String username, String pswd) throws RemoteException {
         try {
@@ -61,9 +67,11 @@ public class Server implements RemoteInterface {
             insertStmt.setBytes(3, salt);
             insertStmt.executeUpdate();
 
-            // give the user an authentication session key
+            // give the user an authentication sessions key
             SecureRandom random = new SecureRandom();
-            return new BigInteger(130, random).toString(32);
+            String sessionKey = new BigInteger(130, random).toString(32);
+            sessions.put(username, sessionKey);
+            return sessionKey;
 
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | SQLException e) {
             System.out.println("Could not encrypt and store the password.");
@@ -72,6 +80,13 @@ public class Server implements RemoteInterface {
         }
     }
 
+    /**
+     * Gets the bytes-encrypted password for a given username from the DB and checks it against a given string password
+     * @param username String
+     * @param pswd String
+     * @return String
+     * @throws RemoteException
+     */
     @Override
     public String authenticate(String username, String pswd) throws RemoteException {
         byte[] encryptedPswd = new byte[0], salt = new byte[0];
@@ -80,14 +95,15 @@ public class Server implements RemoteInterface {
             PreparedStatement stmt = connection.prepareStatement(sql);
             stmt.setString(1, username);
             ResultSet rs = stmt.executeQuery();
-            if(!rs.next()) {
-                System.out.println("No such user with username: " + username);
-                return null;
-            }
 
             while (rs.next()) {
                 encryptedPswd = rs.getBytes("password");
                 salt = rs.getBytes("salt");
+            }
+
+            if(encryptedPswd.length == 0 && salt.length == 0) {
+                System.out.println("No such user with username: " + username);
+                return null;
             }
 
             if(!authenticatePswd(pswd, encryptedPswd, salt)){
@@ -95,9 +111,11 @@ public class Server implements RemoteInterface {
                 return null;
             }
 
-            // give the user an authentication session key
+            // give the user an authentication sessions key
             SecureRandom random = new SecureRandom();
-            return new BigInteger(130, random).toString(32);
+            String sessionKey = new BigInteger(130, random).toString(32);
+            sessions.put(username, sessionKey);
+            return sessionKey;
 
         } catch (SQLException | NoSuchAlgorithmException | InvalidKeySpecException e) {
             System.out.println("Could not fetch user or user does not exist");
@@ -115,7 +133,11 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String print(String filename, String printer) throws RemoteException {
+    public String print(String filename, String printer, String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         printQueue.add(filename);
         return "\"" + filename + "\" was added to the print queue.";
     }
@@ -127,7 +149,11 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String queue() throws RemoteException {
+    public String queue(String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         String topLine = "List of files on the queue:";
         if(printQueue.size() == 0){
             return topLine + "\n -- empty --";
@@ -143,7 +169,11 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String topQueue(int jobID) throws RemoteException {
+    public String topQueue(int jobID, String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         if (jobID >= printQueue.size()){
             return "Print job with ID " + jobID + " does not exist.";
         }
@@ -163,10 +193,9 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String start() throws IOException {
-//        new FileOutputStream("log.txt", false).close();
         printQueue = new ArrayList<>();
         config = new HashMap<>();
-        session = new HashMap<>();
+        sessions = new HashMap<>();
         printerStatus = "ON";
         return "The print server has been started.";
     }
@@ -178,10 +207,14 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String stop() throws RemoteException, SQLException {
+    public String stop(String sessionKey) throws RemoteException, SQLException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         printQueue = null;
         config = null;
-        session = null;
+        sessions = null;
         printerStatus = "OFF";
         try {
             connection.close();
@@ -199,9 +232,13 @@ public class Server implements RemoteInterface {
      * @throws IOException
      */
     @Override
-    public String restart() throws IOException, SQLException {
+    public String restart(String sessionKey) throws IOException, SQLException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         try {
-            String output = stop() + "\n";
+            String output = stop(sessionKey) + "\n";
             output += start();
             return output;
         } catch (SQLException e){
@@ -229,7 +266,11 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String readConfig(String parameter) throws RemoteException {
+    public String readConfig(String parameter, String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         if(config.get(parameter) == null){
             return "No configuration with key \"" + parameter + "\"";
         }
@@ -245,7 +286,11 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String setConfig(String parameter, String value) throws RemoteException {
+    public String setConfig(String parameter, String value, String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+
         config.put(parameter, value);
         return "Done! :)";
     }
@@ -265,11 +310,28 @@ public class Server implements RemoteInterface {
         return listOfFiles;
     }
 
+    /**
+     * Checks for equality a string password against an encrypted bytes array password
+     * @param pswdInput String
+     * @param encryptedPswd byte[]
+     * @param salt byte[]
+     * @return boolean
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidKeySpecException
+     */
     private boolean authenticatePswd(String pswdInput, byte[] encryptedPswd, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException{
         byte[] encryptedPswdInput = getEncryptedPswd(pswdInput, salt);
         return Arrays.equals(encryptedPswd, encryptedPswdInput);
     }
 
+    /**
+     * Encrypts a string password into bytes
+     * @param pswd String
+     * @param salt byte[]
+     * @return byte[]
+     * @throws NoSuchAlgorithmException
+     * @throws InvalidKeySpecException
+     */
     private byte[] getEncryptedPswd(String pswd, byte[] salt) throws NoSuchAlgorithmException, InvalidKeySpecException {
         String algorithm = "PBKDF2WithHmacSHA1";
         int derivedKeyLength = 160;
@@ -281,6 +343,11 @@ public class Server implements RemoteInterface {
         return factory.generateSecret(spec).getEncoded();
     }
 
+    /**
+     * Generates a random byte array
+     * @return byte[]
+     * @throws NoSuchAlgorithmException
+     */
     private byte[] generateSalt() throws NoSuchAlgorithmException {
         SecureRandom random = SecureRandom.getInstance("SHA1PRNG");
 
@@ -288,6 +355,15 @@ public class Server implements RemoteInterface {
         random.nextBytes(salt);
 
         return salt;
+    }
+
+    /**
+     * Checks if the provided session key is set in the sessions list.
+     * @param sessionKey String
+     * @return True/False True if the session key is set, False otherwise
+     */
+    private boolean verifyUserSessionAuthenticated(String sessionKey){
+        return sessions.containsValue(sessionKey);
     }
 
     public static void main(String args[]) {

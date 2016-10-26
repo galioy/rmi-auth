@@ -17,14 +17,14 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String print(String filename, String printer) throws RemoteException;
+    String print(String filename, String printer, String sessionKey) throws RemoteException;
 
     /**
      * Lists the print queue on the user's display, in lines of the form <job number> <file name>
      * @return String
      * @throws RemoteException
      */
-    String queue() throws RemoteException;
+    String queue(String sessionKey) throws RemoteException;
 
     /**
      * Moves "job" to the top of the queue
@@ -32,7 +32,7 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String topQueue(int job) throws RemoteException;
+    String topQueue(int job, String sessionKey) throws RemoteException;
 
     /**
      * Starts the print server
@@ -46,14 +46,14 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String stop() throws RemoteException, SQLException;
+    String stop(String sessionKey) throws RemoteException, SQLException;
 
     /**
      * Restarts the print server, clears the print queue and starts the print server again
      * @return String
      * @throws RemoteException
      */
-    String restart() throws IOException, SQLException;
+    String restart(String sessionKey) throws IOException, SQLException;
 
     /**
      * Prints status of the printer on the user's display
@@ -68,7 +68,7 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String readConfig(String parameter) throws RemoteException;
+    String readConfig(String parameter, String sessionKey) throws RemoteException;
 
     /**
      * Sets the "parameter" to have "value" as value
@@ -77,5 +77,5 @@ public interface RemoteInterface extends Remote{
      * @return String
      * @throws RemoteException
      */
-    String setConfig(String parameter, String value) throws RemoteException;
+    String setConfig(String parameter, String value, String sessionKey) throws RemoteException;
 }

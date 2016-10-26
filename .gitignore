@@ -2,3 +2,7 @@
 out/
 src/classes/*.class
 log.txt
+.~lock.Report.odt#
+Report.odt
+.DS_Store
+Authentication Assignment.gdoc
