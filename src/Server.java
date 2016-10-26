@@ -38,17 +38,28 @@ public class Server implements RemoteInterface {
     @Override
     public String register(String username, String pswd) throws RemoteException {
         try {
+            // Ensure there's no user already registered with this username
+            String selectSQL = "SELECT password, salt FROM users WHERE username=?";
+            PreparedStatement selectStmt = connection.prepareStatement(selectSQL);
+            selectStmt.setString(1, username);
+            ResultSet rs = selectStmt.executeQuery();
+            if(rs.next()) {
+                // User with this username exists, so return NULL and do not proceed with registration
+                System.out.println("User with username \"" + username + "\" already registered!");
+                return null;
+            }
+
             // Encrypt the password
             byte[] salt = generateSalt();
             byte[] encryptedPswd = getEncryptedPswd(pswd, salt);
 
             // Store encrypted pswd and salt in the DB
-            String sql = "INSERT INTO users(username, password, salt) VALUES (?, ?, ?)";
-            PreparedStatement stmt = connection.prepareStatement(sql);
-            stmt.setString(1, username);
-            stmt.setString(2, new String(encryptedPswd));
-            stmt.setString(3, new String(salt));
-            stmt.executeUpdate();
+            String insertSQL = "INSERT INTO users(username, password, salt) VALUES (?, ?, ?)";
+            PreparedStatement insertStmt = connection.prepareStatement(insertSQL);
+            insertStmt.setString(1, username);
+            insertStmt.setBytes(2, encryptedPswd);
+            insertStmt.setBytes(3, salt);
+            insertStmt.executeUpdate();
 
             // give the user an authentication session key
             SecureRandom random = new SecureRandom();
@@ -65,18 +76,20 @@ public class Server implements RemoteInterface {
     public String authenticate(String username, String pswd) throws RemoteException {
         byte[] encryptedPswd = new byte[0], salt = new byte[0];
         try {
-            String sql = "SELECT password, salt FROM users WHERE username='"+username+"'";
-            Statement stmt = connection.createStatement();
-            ResultSet rs = stmt.executeQuery(sql);
+            String sql = "SELECT password, salt FROM users WHERE username=?";
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            stmt.setString(1, username);
+            ResultSet rs = stmt.executeQuery();
             if(!rs.next()) {
                 System.out.println("No such user with username: " + username);
                 return null;
             }
 
             while (rs.next()) {
-                encryptedPswd = rs.getString("password").getBytes();
-                salt = rs.getString("salt").getBytes();
+                encryptedPswd = rs.getBytes("password");
+                salt = rs.getBytes("salt");
             }
+
             if(!authenticatePswd(pswd, encryptedPswd, salt)){
                 System.out.println("Could not authenticate user");
                 return null;

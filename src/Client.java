@@ -37,7 +37,7 @@ public class Client {
 
                         result = stub.authenticate(username, pswd);
                         if (result == null) {
-                            System.out.println("Could not authenticate...");
+                            System.out.println("Could not authenticate or no user with username " +username+"...");
                             return callServer(client, command, stub, scanner);
                         }
                         client.sessionKey = result;
@@ -50,7 +50,7 @@ public class Client {
 
                         result = stub.register(username, pswd);
                         if (result == null) {
-                            System.out.println("Could not authenticate...");
+                            System.out.println("Could not register or user with such username already exists...");
                             return callServer(client, command, stub, scanner);
                         }
                         client.sessionKey = result;
