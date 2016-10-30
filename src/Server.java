@@ -107,7 +107,7 @@ public class Server implements RemoteInterface {
             }
 
             if(!authenticatePswd(pswd, encryptedPswd, salt)){
-                System.out.println("Could not authenticate user");
+                System.out.println("Wrong username or password!");
                 return null;
             }
 
