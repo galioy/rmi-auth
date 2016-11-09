@@ -22,9 +22,9 @@ public class Server implements RemoteInterface {
     private HashMap<String, String> sessions;
 
     private Connection connection;
-    String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
+    private String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
 
-    public Server() {
+    private Server() {
         try {
             Class.forName("org.postgresql.Driver");
             connection = DriverManager.getConnection(url);
@@ -193,11 +193,21 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String start() throws IOException {
-        printQueue = new ArrayList<>();
-        config = new HashMap<>();
-        sessions = new HashMap<>();
-        printerStatus = "ON";
-        return "The print server has been started.";
+        try {
+            Class.forName("org.postgresql.Driver");
+            connection = DriverManager.getConnection(url);
+
+            printQueue = new ArrayList<>();
+            config = new HashMap<>();
+            sessions = new HashMap<>();
+            printerStatus = "ON";
+
+            return "The print server has been started.";
+        } catch (Exception e){
+            System.out.println("Connection to the DB could not be established...");
+            e.printStackTrace();
+            return "The print server could not be started because DB connection problems...";
+        }
     }
 
     /**
