@@ -79,13 +79,17 @@ public class Client {
                         return "Printer server is already ON...";
                     case "stop":
                         try {
-                            return stub.stop(client.sessionKey);
+                            String result = stub.stop(client.sessionKey);
+                            client.sessionKey = null;
+                            return result;
                         } catch (SQLException e) {
                             e.printStackTrace();
                         }
                     case "restart":
                         try {
-                            return stub.restart(client.sessionKey);
+                            String result = stub.restart(client.sessionKey);
+                            client.sessionKey = null;
+                            return result;
                         } catch (SQLException e) {
                             e.printStackTrace();
                         }
