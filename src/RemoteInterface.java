@@ -37,30 +37,30 @@ public interface RemoteInterface extends Remote{
     /**
      * Starts the print server
      * @return String
-     * @throws IOException
+     * @throws RemoteException
      */
-    String start() throws IOException; // IOException combines RemoteException and FileNotFoundException
+    String start(String sessionKey) throws RemoteException;
 
     /**
      * Stops the print server
      * @return String
      * @throws RemoteException
      */
-    String stop(String sessionKey) throws RemoteException, SQLException;
+    String stop(String sessionKey) throws RemoteException;
 
     /**
      * Restarts the print server, clears the print queue and starts the print server again
      * @return String
      * @throws RemoteException
      */
-    String restart(String sessionKey) throws IOException, SQLException;
+    String restart(String sessionKey) throws IOException;
 
     /**
      * Prints status of the printer on the user's display
      * @return String
      * @throws RemoteException
      */
-    String status() throws RemoteException;
+    String status(String sessionKey) throws RemoteException;
 
     /**
      * Prints the value of the "parameter" on the user's display
