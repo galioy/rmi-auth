@@ -14,12 +14,14 @@ import java.sql.*;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.Map;
 
 public class Server implements RemoteInterface {
     private ArrayList<String> printQueue;
     private String printerStatus = "OFF";
     private HashMap<String, String> config;
     private HashMap<String, String> sessions;
+    private HashMap<String, ArrayList<String>> ACL;
 
     private Connection connection;
     private String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
@@ -28,6 +30,39 @@ public class Server implements RemoteInterface {
         try {
             Class.forName("org.postgresql.Driver");
             connection = DriverManager.getConnection(url);
+
+            ACL = new HashMap<>();
+            String sql = "SELECT u.username, u.id, a.method FROM users u " +
+                    "LEFT JOIN acl a ON a.user_id = u.id";
+
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+
+            String username, nextUsername;
+            ArrayList<String> methods = new ArrayList<>();
+
+            /* Add the first username and first method */
+            rs.next();
+            username = rs.getString("username");
+            methods.add(rs.getString("method"));
+            ACL.put(username, methods);
+
+            while (rs.next()) {
+                nextUsername = rs.getString("username");
+                if(username.equalsIgnoreCase(nextUsername)){
+                   /* Add a method to the list of methods of the current user */
+                    ACL.get(username).add(rs.getString("method"));
+                } else {
+                    /* New user, so update the current username for the iterations */
+                    username = nextUsername;
+                    methods = new ArrayList<>();
+                    methods.add(rs.getString("method"));
+                    ACL.put(username, methods);
+                }
+            }
+
+            sessions = new HashMap<>();
+
         } catch (Exception e){
             System.out.println("Connection to the DB could not be established...");
             e.printStackTrace();
@@ -70,7 +105,7 @@ public class Server implements RemoteInterface {
             // give the user an authentication sessions key
             SecureRandom random = new SecureRandom();
             String sessionKey = new BigInteger(130, random).toString(32);
-            sessions.put(username, sessionKey);
+            sessions.put(sessionKey, username);
             return sessionKey;
 
         } catch (NoSuchAlgorithmException | InvalidKeySpecException | SQLException e) {
@@ -89,6 +124,15 @@ public class Server implements RemoteInterface {
      */
     @Override
     public String authenticate(String username, String pswd) throws RemoteException {
+        if(sessions.containsValue(username)){
+            String sessionKey = sessions.entrySet().stream()
+                    .filter(e -> e.getValue().equalsIgnoreCase(username))
+                    .map(Map.Entry::getKey)
+                    .findFirst()
+                    .orElse(null);
+            return sessionKey;
+        }
+
         byte[] encryptedPswd = new byte[0], salt = new byte[0];
         try {
             String sql = "SELECT password, salt FROM users WHERE username=?";
@@ -114,7 +158,7 @@ public class Server implements RemoteInterface {
             // give the user an authentication sessions key
             SecureRandom random = new SecureRandom();
             String sessionKey = new BigInteger(130, random).toString(32);
-            sessions.put(username, sessionKey);
+            sessions.put(sessionKey, username);
             return sessionKey;
 
         } catch (SQLException | NoSuchAlgorithmException | InvalidKeySpecException e) {
@@ -137,6 +181,12 @@ public class Server implements RemoteInterface {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
         }
+        if(!canUserAccessMethod(sessionKey, "print")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
+        }
 
         printQueue.add(filename);
         return "\"" + filename + "\" was added to the print queue.";
@@ -152,6 +202,12 @@ public class Server implements RemoteInterface {
     public String queue(String sessionKey) throws RemoteException {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
+        }
+        if(!canUserAccessMethod(sessionKey, "queue")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
         }
 
         String topLine = "List of files on the queue:";
@@ -173,6 +229,12 @@ public class Server implements RemoteInterface {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
         }
+        if(!canUserAccessMethod(sessionKey, "topQueue")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
+        }
 
         if (jobID >= printQueue.size()){
             return "Print job with ID " + jobID + " does not exist.";
@@ -189,25 +251,25 @@ public class Server implements RemoteInterface {
      * Starts the print server
      *
      * @return String
-     * @throws IOException
+     * @throws RemoteException
      */
     @Override
-    public String start() throws IOException {
-        try {
-            Class.forName("org.postgresql.Driver");
-            connection = DriverManager.getConnection(url);
-
-            printQueue = new ArrayList<>();
-            config = new HashMap<>();
-            sessions = new HashMap<>();
-            printerStatus = "ON";
-
-            return "The print server has been started.";
-        } catch (Exception e){
-            System.out.println("Connection to the DB could not be established...");
-            e.printStackTrace();
-            return "The print server could not be started because DB connection problems...";
+    public String start(String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
         }
+        if(!canUserAccessMethod(sessionKey, "start")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(printerStatus.equals("ON")){
+            return "> The printer server is already ON...";
+        }
+
+        printQueue = new ArrayList<>();
+        config = new HashMap<>();
+        printerStatus = "ON";
+
+        return "The print server has been started.";
     }
 
     /**
@@ -217,21 +279,21 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String stop(String sessionKey) throws RemoteException, SQLException {
+    public String stop(String sessionKey) throws RemoteException {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
+        }
+        if(!canUserAccessMethod(sessionKey, "stop")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
         }
 
         printQueue = null;
         config = null;
-        sessions = null;
         printerStatus = "OFF";
-        try {
-            connection.close();
-        } catch (SQLException e){
-            e.printStackTrace();
-            return "An error occurred while stopping the server...";
-        }
+
         return "The print server has been stopped.";
     }
 
@@ -239,22 +301,21 @@ public class Server implements RemoteInterface {
      * Restarts the print server, clears the print printQueue and starts the print server again
      *
      * @return String
-     * @throws IOException
+     * @throws RemoteException
      */
     @Override
-    public String restart(String sessionKey) throws IOException, SQLException {
+    public String restart(String sessionKey) throws RemoteException {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
         }
-
-        try {
-            String output = stop(sessionKey) + "\n";
-            output += start();
-            return output;
-        } catch (SQLException e){
-            e.printStackTrace();
-            return "An error occurred while stopping the server...";
+        if(!canUserAccessMethod(sessionKey, "restart")){
+            return "You do not have permission to invoke this method!";
         }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
+        }
+
+        return stop(sessionKey) + "\n" + start(sessionKey);
     }
 
     /**
@@ -264,7 +325,14 @@ public class Server implements RemoteInterface {
      * @throws RemoteException
      */
     @Override
-    public String status() throws RemoteException {
+    public String status(String sessionKey) throws RemoteException {
+        if(!verifyUserSessionAuthenticated(sessionKey)){
+            return "Not authenticated!";
+        }
+        if(!canUserAccessMethod(sessionKey, "status")){
+            return "You do not have permission to invoke this method!";
+        }
+
         return printerStatus;
     }
 
@@ -279,6 +347,12 @@ public class Server implements RemoteInterface {
     public String readConfig(String parameter, String sessionKey) throws RemoteException {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
+        }
+        if(!canUserAccessMethod(sessionKey, "readConfig")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
         }
 
         if(config.get(parameter) == null){
@@ -299,6 +373,12 @@ public class Server implements RemoteInterface {
     public String setConfig(String parameter, String value, String sessionKey) throws RemoteException {
         if(!verifyUserSessionAuthenticated(sessionKey)){
             return "Not authenticated!";
+        }
+        if(!canUserAccessMethod(sessionKey, "setConfig")){
+            return "You do not have permission to invoke this method!";
+        }
+        if(!verifyPrinterIsON()){
+            return "> The printer server is OFF. Please enter \"start\" to start it or contact your administrator...";
         }
 
         config.put(parameter, value);
@@ -373,7 +453,25 @@ public class Server implements RemoteInterface {
      * @return True/False True if the session key is set, False otherwise
      */
     private boolean verifyUserSessionAuthenticated(String sessionKey){
-        return sessions.containsValue(sessionKey);
+        return sessions.containsKey(sessionKey);
+    }
+
+    /**
+     * Check in the ACL whether the user is allowed to invoke the particular method
+     * @param sessionKey String
+     * @param method String
+     * @return
+     */
+    private boolean canUserAccessMethod(String sessionKey, String method){
+        String username = sessions.get(sessionKey);
+        return ACL.get(username).contains(method);
+    }
+
+    /**
+     * @return boolean True if the server is ON, False otherwise
+     */
+    private boolean verifyPrinterIsON(){
+        return printerStatus.equals("ON");
     }
 
     public static void main(String args[]) {

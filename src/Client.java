@@ -12,110 +12,85 @@ public class Client {
     }
 
     private static String callServer(Client client, String command, RemoteInterface stub, Scanner scanner) throws IOException{
-        if(stub.status().equals("OFF")){
-            switch (command){
-                case "status":
-                    return stub.status();
-                case "start":
-                    return stub.start();
+        if(client.sessionKey == null){
+            String username, pswd, result;
+            switch(command) {
+                case "login":
+                    System.out.println("> Type in username:");
+                    username = scanner.nextLine();
+                    System.out.println("> Type in password:");
+                    pswd = scanner.nextLine();
+
+                    result = stub.authenticate(username, pswd);
+                    if (result == null) {
+                        System.out.println("Could not authenticate or no user with username " +username+"...");
+                        return callServer(client, command, stub, scanner);
+                    }
+                    client.sessionKey = result;
+                    return "You're in!";
+                case "register":
+                    System.out.println("> Type in username:");
+                    username = scanner.nextLine();
+                    System.out.println("> Type in password:");
+                    pswd = scanner.nextLine();
+
+                    result = stub.register(username, pswd);
+                    if (result == null) {
+                        System.out.println("Could not register or user with such username already exists...");
+                        return callServer(client, command, stub, scanner);
+                    }
+                    client.sessionKey = result;
+                    return "You're in!";
                 default:
-                    System.out.println("> The printer server is OFF. Please enter \"start\" to start it...");
+                    System.out.println("> You have to Login or Register first...");
                     command = scanner.nextLine();
                     return callServer(client, command, stub, scanner);
             }
-        } else {
-            if(client.sessionKey == null){
-                String username, pswd, result;
-                switch(command) {
-                    case "login":
-                        System.out.println("> Type in username:");
-                        username = scanner.nextLine();
-                        System.out.println("> Type in password:");
-                        pswd = scanner.nextLine();
+        }
 
-                        result = stub.authenticate(username, pswd);
-                        if (result == null) {
-                            System.out.println("Could not authenticate or no user with username " +username+"...");
-                            return callServer(client, command, stub, scanner);
-                        }
-                        client.sessionKey = result;
-                        return "You're in!";
-                    case "register":
-                        System.out.println("> Type in username:");
-                        username = scanner.nextLine();
-                        System.out.println("> Type in password:");
-                        pswd = scanner.nextLine();
+        switch (command) {
+            case "print":
+                System.out.println("> Please provide filename to be printed:");
+                String filename = scanner.nextLine();
 
-                        result = stub.register(username, pswd);
-                        if (result == null) {
-                            System.out.println("Could not register or user with such username already exists...");
-                            return callServer(client, command, stub, scanner);
-                        }
-                        client.sessionKey = result;
-                        return "You're in!";
-                    default:
-                        System.out.println("> You have to Login or Register first...");
-                        command = scanner.nextLine();
-                        return callServer(client, command, stub, scanner);
-                }
-            } else {
-                switch (command) {
-                    case "print":
-                        System.out.println("> Please provide filename to be printed:");
-                        String filename = scanner.nextLine();
+                System.out.println("> Please provide printer number:");
+                String printer = scanner.nextLine();
 
-                        System.out.println("> Please provide printer number:");
-                        String printer = scanner.nextLine();
+                return stub.print(filename, printer, client.sessionKey);
+            case "queue":
+                return stub.queue(client.sessionKey);
+            case "topQueue":
+                System.out.println("> Please provide job ID:");
+                int jobID = scanner.nextInt();
 
-                        return stub.print(filename, printer, client.sessionKey);
-                    case "queue":
-                        return stub.queue(client.sessionKey);
-                    case "topQueue":
-                        System.out.println("> Please provide job ID:");
-                        int jobID = scanner.nextInt();
+                return stub.topQueue(jobID, client.sessionKey);
+            case "start":
+                return stub.start(client.sessionKey);
+            case "stop":
+                return stub.stop(client.sessionKey);
+            case "restart":
+                return stub.restart(client.sessionKey);
+            case "status":
+                return stub.status(client.sessionKey);
+            case "readConfig":
+                System.out.println("> Please provide config parameter:");
+                String param = scanner.nextLine();
 
-                        return stub.topQueue(jobID, client.sessionKey);
-                    case "start":
-                        return "Printer server is already ON...";
-                    case "stop":
-                        try {
-                            String result = stub.stop(client.sessionKey);
-                            client.sessionKey = null;
-                            return result;
-                        } catch (SQLException e) {
-                            e.printStackTrace();
-                        }
-                    case "restart":
-                        try {
-                            String result = stub.restart(client.sessionKey);
-                            client.sessionKey = null;
-                            return result;
-                        } catch (SQLException e) {
-                            e.printStackTrace();
-                        }
-                    case "status":
-                        return stub.status();
-                    case "readConfig":
-                        System.out.println("> Please provide config parameter:");
-                        String param = scanner.nextLine();
+                return stub.readConfig(param, client.sessionKey);
+            case "setConfig":
+                System.out.println("> Please provide parameter to be set:");
+                param = scanner.nextLine();
 
-                        return stub.readConfig(param, client.sessionKey);
-                    case "setConfig":
-                        System.out.println("> Please provide parameter to be set:");
-                        param = scanner.nextLine();
+                System.out.println("> Please provide value for the parameter:");
+                String paramValue = scanner.nextLine();
 
-                        System.out.println("> Please provide value for the parameter:");
-                        String paramValue = scanner.nextLine();
-
-                        return stub.setConfig(param, paramValue, client.sessionKey);
-                    default:
-                        System.out.println("Command not recognized. Available commands are: \n" +
-                                "print, queue, topQueue, start, stop, restart, status, readConfig, setConfig.\n" +
-                                "> Please type in a command again:");
-                        command = scanner.nextLine();
-                        return callServer(client, command, stub, scanner);
-                }
-            }
+                return stub.setConfig(param, paramValue, client.sessionKey);
+            default:
+                System.out.println("Command not recognized. Available commands are: \n" +
+                        "print, queue, topQueue, start, stop, restart, status, readConfig, setConfig.\n" +
+                        "> Please type in a command again:");
+                command = scanner.nextLine();
+                return callServer(client, command, stub, scanner);
         }
     }
 
