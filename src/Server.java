@@ -22,6 +22,7 @@ public class Server implements RemoteInterface {
     private HashMap<String, String> config;
     private HashMap<String, String> sessions;
     private HashMap<String, ArrayList<String>> ACL;
+    private HashMap<String, ArrayList<String>> canAccess;
 
     private Connection connection;
     private String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
@@ -31,38 +32,8 @@ public class Server implements RemoteInterface {
             Class.forName("org.postgresql.Driver");
             connection = DriverManager.getConnection(url);
 
-            ACL = new HashMap<>();
-            String sql = "SELECT u.username, u.id, a.method FROM users u " +
-                    "LEFT JOIN acl a ON a.user_id = u.id";
-
-            PreparedStatement stmt = connection.prepareStatement(sql);
-            ResultSet rs = stmt.executeQuery();
-
-            String username, nextUsername;
-            ArrayList<String> methods = new ArrayList<>();
-
-            /* Add the first username and first method */
-            rs.next();
-            username = rs.getString("username");
-            methods.add(rs.getString("method"));
-            ACL.put(username, methods);
-
-            while (rs.next()) {
-                nextUsername = rs.getString("username");
-                if(username.equalsIgnoreCase(nextUsername)){
-                   /* Add a method to the list of methods of the current user */
-                    ACL.get(username).add(rs.getString("method"));
-                } else {
-                    /* New user, so update the current username for the iterations */
-                    username = nextUsername;
-                    methods = new ArrayList<>();
-                    methods.add(rs.getString("method"));
-                    ACL.put(username, methods);
-                }
-            }
-
             sessions = new HashMap<>();
-
+            canAccess = new HashMap<>();
         } catch (Exception e){
             System.out.println("Connection to the DB could not be established...");
             e.printStackTrace();
@@ -140,22 +111,45 @@ public class Server implements RemoteInterface {
             stmt.setString(1, username);
             ResultSet rs = stmt.executeQuery();
 
+            /*
+             * Authenticate the users
+             */
             while (rs.next()) {
                 encryptedPswd = rs.getBytes("password");
                 salt = rs.getBytes("salt");
             }
-
             if(encryptedPswd.length == 0 && salt.length == 0) {
                 System.out.println("No such user with username: " + username);
                 return null;
             }
-
             if(!authenticatePswd(pswd, encryptedPswd, salt)){
                 System.out.println("Wrong username or password!");
                 return null;
             }
 
-            // give the user an authentication sessions key
+            /*
+             * Authorize the user
+             */
+            sql = "SELECT p.method AS method FROM permissions p " +
+                    "WHERE p.role_id=(SELECT u.role_id FROM users u WHERE u.username=?)";
+
+            stmt = connection.prepareStatement(sql);
+            stmt.setString(1, username);
+            rs = stmt.executeQuery();
+
+            /*
+             * Generate the list of methods allowed for the current user and relate that list to the user
+             * in the `canAccess` HashMap
+             */
+            ArrayList<String> methods = new ArrayList<>();
+            while (rs.next()) {
+                methods.add(rs.getString("method"));
+            }
+            canAccess.put(username, methods);
+
+            /*
+             * Give the user an authentication sessions key
+             */
             SecureRandom random = new SecureRandom();
             String sessionKey = new BigInteger(130, random).toString(32);
             sessions.put(sessionKey, username);
