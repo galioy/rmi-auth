@@ -20,6 +20,7 @@ public class Server implements RemoteInterface {
     private String printerStatus = "OFF";
     private HashMap<String, String> config;
     private HashMap<String, String> sessions;
+    private HashMap<String, ArrayList<String>> ACL;
 
     private Connection connection;
     private String url = "jdbc:postgresql://localhost:5432/auth?user=postgres";
@@ -196,6 +197,37 @@ public class Server implements RemoteInterface {
         try {
             Class.forName("org.postgresql.Driver");
             connection = DriverManager.getConnection(url);
+
+            ACL = new HashMap<>();
+            String sql = "SELECT u.username, u.id, a.method FROM users u " +
+                    "LEFT JOIN acl a ON a.user_id = u.id";
+
+            PreparedStatement stmt = connection.prepareStatement(sql);
+            ResultSet rs = stmt.executeQuery();
+
+            String username, nextUsername;
+            ArrayList<String> methods = new ArrayList<>();
+
+            /* Add the first username and first method */
+            rs.next();
+            username = rs.getString("username");
+            methods.add(rs.getString("method"));
+            ACL.put(username, methods);
+
+            while (rs.next()) {
+                nextUsername = rs.getString("username");
+                if(username.equalsIgnoreCase(nextUsername)){
+                   /* Add a method to the list of methods of the current user */
+                    ACL.get(username).add(rs.getString("method"));
+                } else {
+                    /* New user, so update the current username for the iterations */
+                    username = nextUsername;
+                    methods = new ArrayList<>();
+                    methods.add(rs.getString("method"));
+                    ACL.put(username, methods);
+                }
+            }
+
 
             printQueue = new ArrayList<>();
             config = new HashMap<>();
