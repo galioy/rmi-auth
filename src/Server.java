@@ -21,7 +21,6 @@ public class Server implements RemoteInterface {
     private String printerStatus = "OFF";
     private HashMap<String, String> config;
     private HashMap<String, String> sessions;
-    private HashMap<String, ArrayList<String>> ACL;
     private HashMap<String, ArrayList<String>> canAccess;
 
     private Connection connection;
@@ -458,7 +457,7 @@ public class Server implements RemoteInterface {
      */
     private boolean canUserAccessMethod(String sessionKey, String method){
         String username = sessions.get(sessionKey);
-        return ACL.get(username).contains(method);
+        return canAccess.get(username).contains(method);
     }
 
     /**
